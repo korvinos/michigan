@@ -26,7 +26,8 @@ def stich(band):
 
 # INITIAL CONDITIONS
 # <ifile> is path to sentinel image
-ifile = '/nfs0/data_ocolor/michigan/sentinel2a/S2A_OPER_PRD_MSIL1C_PDMC_20160904T205606_R126_V20160903T164322_20160903T164911.SAFE'
+ifile = '/data/sentinel2a/S2A_OPER_PRD_MSIL1C_PDMC_20160705T215730_R126_V20160705T164320_20160705T164320.SAFE'
+# ifile = '/nfs0/data_ocolor/michigan/sentinel2a/S2A_OPER_PRD_MSIL1C_PDMC_20160904T205606_R126_V20160903T164322_20160903T164911.SAFE'
 
 # <pixel_size> spatrial resolution of each pixel in meters. 
 # Based on characteristics of sentinel2a. Min: 10 m; Mean: 20 m; Max: 60 m;
