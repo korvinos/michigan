@@ -1,26 +1,12 @@
 from nansat import Nansat, Domain
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
+
 from ovl_plugins.fusion.fusion import fuse
+from dataprep import Data
 
 
-class Fusion:
-    # Different bands sets for each sensors
-    wavelengths = {
-        'modis': {
-            'full': [412, 443, 488, 531, 547, 555, 645, 667, 678],
-            '1x1km_bands': [412, 443, 488, 531, 645, 678]
-        },
-
-        'sentinel2': [443, 490, 560, 665, 705, 740, 783, 842, 945, 1375, 1610]
-    }
-
-    # Sandy Bear Dunes domain
-    pixel_size = 60
-    x_resolution, y_resolution = 122 * (1000 / pixel_size), 78 * (1000 / pixel_size)
-    sbd_dom = Domain('+proj=latlong +datum=WGS84 +ellps=WGS84 +no_defs',
-                     '-lle -86.3 44.6 -85.2 45.3 -ts %s %s' % (x_resolution, y_resolution))
-
+class Fusion(Data):
     # Constants for Sentinel-2 image correction
     bMax = 2300  # OK
     # bMax = 200 # MAYBE A BIT TOO LOW
@@ -47,7 +33,7 @@ class Fusion:
         # Open inputted files by Nansat
         # Load low resolution file - MODISa
         self.loresfile = Nansat(m_file)
-        self.loresfile.reproject(self.sbd_dom)
+        self.loresfile.reproject(self.domain)
         if negative_px:
             self.negpix = self.loresfile[2] < 0
 
@@ -56,7 +42,7 @@ class Fusion:
         # load hi-res
         # Load file with sentinel data
         hiresfile = Nansat(s_file)
-        hiresfile.reproject(self.sbd_dom)
+        hiresfile.reproject(self.domain)
 
         # Get numbers of of each band
         band_rrs_numbers = [hiresfile._get_band_number('Rrs_%s' % wavelength) for wavelength in self.wavelengths['sentinel2']]
@@ -116,8 +102,9 @@ class Fusion:
                 lores = lores[:self.cutsize, :self.cutsize]
             lores[self.negpix] = np.nan
             lores_rgb.append(lores)
-                # hires_fused = fuse(hires, lores, network_name=rgb_band,
+            # hires_fused = fuse(hires, lores, network_name=rgb_band,
             # iterations=100, threads=7, nn_structure=[5, 10, 7, 3])
+            # TODO: We should use less number of iterations: 15 - 16
             hires_fused = fuse(self.hires, lores, network_name=rgb_band, iterations=20, threads=7, index=self.index)
             hires_rgb.append(hires_fused)
         return lores_rgb, hires_rgb
