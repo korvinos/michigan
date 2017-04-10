@@ -94,17 +94,22 @@ class Fusion(Data):
 
     def fusion(self, m_wavelengths='full'):
         bands = ['Rrs_%s' % wavelength for wavelength in self.wavelengths['modis'][m_wavelengths]]
-        hires_rgb = []
-        lores_rgb = []
-        for rgb_band in bands:
-            lores = self.loresfile[rgb_band]
+        n_hires = Nansat(domain=self.domain)
+        n_lores = Nansat(domain=self.domain)
+
+        for band in bands:
+            lores = self.loresfile[band]
             if self.cut:
                 lores = lores[:self.cutsize, :self.cutsize]
+
             lores[self.negpix] = np.nan
-            lores_rgb.append(lores)
+            n_lores.add_band(lores, parameters={'name': band})
             # hires_fused = fuse(hires, lores, network_name=rgb_band,
             # iterations=100, threads=7, nn_structure=[5, 10, 7, 3])
             # TODO: We should use less number of iterations: 15 - 16
-            hires_fused = fuse(self.hires, lores, network_name=rgb_band, iterations=20, threads=7, index=self.index)
-            hires_rgb.append(hires_fused)
-        return lores_rgb, hires_rgb
+            hires_fused = fuse(self.hires, lores, network_name=band, iterations=20, threads=7, index=self.index)
+            n_hires.add_band(hires_fused, parameters={'name': band})
+
+
+
+        return n_lores, n_hires
