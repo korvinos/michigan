@@ -110,6 +110,4 @@ class Fusion(Data):
             hires_fused = fuse(self.hires, lores, network_name=band, iterations=20, threads=7, index=self.index)
             n_hires.add_band(hires_fused, parameters={'name': band})
 
-
-
         return n_lores, n_hires
