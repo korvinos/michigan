@@ -36,7 +36,7 @@ class Data:
     # <domain> is domain which covers Sandy Bear Dunes Region
     # To see region on a map see: https://github.com/korvinos/michigan/blob/master/michigan.geojson
     # To get characteristics of region see michigan.geojson
-    domain = Domain('+proj=latlong +datum=WGS84 +ellps=WGS84 +no_defs', '-lle -86.3 44.6 -85.2 45.3 -ts %s %s'
+    sbd_dom = Domain('+proj=latlong +datum=WGS84 +ellps=WGS84 +no_defs', '-lle -86.3 44.6 -85.2 45.3 -ts %s %s'
                     % (x_resolution, y_resolution))
 
     # BANDS = {
@@ -60,20 +60,22 @@ class Data:
     # https://sentinels.copernicus.eu/web/sentinel/user-guides/sentinel-2-msi/product-types
     granules = ['16TER', '16TFR', '16TEQ', '16TFQ']
 
-    def __init__(self, ifile, domain):
+    def __init__(self, m_file=None, s_file=None, domain=None):
         """
         :param ifile: str, file path  
         :param domain: <nansat.domain.Domain> object
         """
 
-        self.domain = domain
-        self.m_file = None
-        self.s_file = None
+        self.domain = self.sbd_dom
 
-        if re.match(r'A', ifile) is None:
-            self.s_file = ifile
-        else:
-            self.m_file = ifile
+        if domain is not None:
+            self.domain = domain
+
+        self.m_file = m_file
+        self.s_file = s_file
+
+        if not self.m_file and not self.s_file:
+            raise ImportError
 
     def modis_geo_location(self, wavelengths, save_path='./', gcp_count=70):
         """
