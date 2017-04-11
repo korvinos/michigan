@@ -2,13 +2,14 @@ from fusion import Fusion
 import numpy as np
 from nansat import Nansat
 from boreali import Boreali, lm
+from sklearn.cluster import KMeans
 
 
 class MichiganProcessing(Fusion):
 
     BATHYMETRY_PATH = './requirements/michigan_lld.grd'
 
-    def __init__(self, m_file, s_file=None, fuse=False, wavelengths='full', domain=False, reproject=False):
+    def __init__(self, m_file, s_file=None, fuse=False, domain=False, reproject=False):
         """
         :param m_file: 
         :param s_file: 
@@ -49,10 +50,10 @@ class MichiganProcessing(Fusion):
         h_10m = np.where(h <= 10, np.array(1), np.nan)
         return h
 
-    def boreali_processing(self, wavelengths='full', bottom_type=0, osw_mod='on', bathymetry_path=BATHYMETRY_PATH,
+    def boreali_processing(self, wavelengths_set='1x1km_bands', bottom_type=0, osw_mod='on', bathymetry_path=BATHYMETRY_PATH,
                            hydro_optic='michigan'):
 
-        wavelengths = self.wavelengths['modis'][wavelengths]
+        wavelengths = self.wavelengths['modis'][wavelengths_set]
 
         cpa_limits = [0.01, 3,
                       0.01, 1,
@@ -176,3 +177,16 @@ class MichiganProcessing(Fusion):
             # # plot_r(obj, wavelens=wavelens, coords=(y, x), size=(10, 4), title='title')
         else:
             return c_osw, c_deep, depth
+
+    def bottom_classification(self, clusters, wavelengths_set='1x1km_bands'):
+
+        k_train_arr = []
+        for band in self.wavelengths['modis'][wavelengths_set]:
+            k_train_arr.append(self.ifile['Rrs_%s' % (band)].flatten())
+
+        k_train_arr = np.array(k_train_arr).T
+
+        kmeans = KMeans(n_clusters=clusters, random_state=0).fit(k_train_arr)
+        arr = kmeans.labels_
+        arr.reshape(self.domain.shape())
+        return arr
