@@ -121,22 +121,22 @@ class MichiganProcessing(Fusion):
         r_list = [self.ifile[band][y][x] for band in band_numbers]
         return r_list
 
-    def boreali_lm(self, wavelengths, h, coords, bottom_type=0, show='on', title=None, hydro_optic='michigan'):
+    def boreali_lm(self, coords, wavelengths_set='1x1km_bands', bottom_type=0, show='on', title=None, hydro_optic='michigan'):
         """
         :param wavelengths: list.
-        :param h: 2D array.
         :param coords: tuple. i, j 
         :param bottom_type: int.
         0 - sand; 1 - sargassum; 2 - silt; 3 - boodlea; 4 - limestone; 
         5 - enteromorpha; 6 - cladophora; 7 - chara; 8 - sand2; 9 - sand3; 10 - charasand;
         11 - cladforaosand; 12 - sandmichi; 13 - cladomichi; 
         """
+        wavelengths = self.wavelengths['modis'][wavelengths_set]
         y, x = coords
         b = Boreali(hydro_optic, wavelengths)
         model = b.get_homodel()
         theta = 0
         albedoType = bottom_type
-        depth = float(h[y, x])
+        depth = float(self.get_bottom()[y, x])
         # depth = 7
         albedo = b.get_albedo([albedoType])[0]
 
@@ -188,5 +188,5 @@ class MichiganProcessing(Fusion):
 
         kmeans = KMeans(n_clusters=clusters, random_state=0).fit(k_train_arr)
         arr = kmeans.labels_
-        arr.reshape(self.domain.shape())
+        arr = arr.reshape(self.domain.shape())
         return arr

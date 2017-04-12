@@ -3,3 +3,5 @@
 .idea/
 .ipynb_checkpoints/
 *.pyc
+/*.nc
+/data/S2A_*

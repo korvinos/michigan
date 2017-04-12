@@ -18,6 +18,8 @@ def show_it(obj, name, color='jet', limits=None, z10='off', size=(9, 6), coord_g
         plt.xticks(x, x_labels)
 
     # black field is area which depth less than 10 meters
-    if z10 == 'on': plt.imshow(h_10m, cmap='gray')
-    plt.imshow(h_mask, cmap='Dark2')
-    plt.grid(color='black')
+    # if z10 == 'on': plt.imshow(h_10m, cmap='gray')
+    # plt.imshow(h_mask, cmap='Dark2')
+    # plt.grid(color='black')
+
+    plt.show()
