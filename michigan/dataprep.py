@@ -19,7 +19,21 @@ class Data:
             '1x1km_bands_2': [443, 488, 531, 645, 678]  # Only 1x1 km spatial resolution bands
         },
 
-        'sentinel2': [443, 490, 560, 665, 705, 740, 783, 842, 945, 1375, 1610, 2190]
+        'sentinel2': {
+            '01': {'wavelength': 443, 'resolution': 60},
+            '02': {'wavelength': 490, 'resolution': 10},
+            '03': {'wavelength': 560, 'resolution': 10},
+            '04': {'wavelength': 665, 'resolution': 10},
+            '05': {'wavelength': 705, 'resolution': 20},
+            '06': {'wavelength': 740, 'resolution': 20},
+            '07': {'wavelength': 783, 'resolution': 20},
+            '08': {'wavelength': 842, 'resolution': 10},
+    #        '8A':{ 'wavelength': 865, 'resolution': 20},
+            '09': {'wavelength': 945, 'resolution': 60},
+            '10': {'wavelength': 1375, 'resolution': 60},
+            '11': {'wavelength': 1610, 'resolution': 20},
+            '12': {'wavelength': 2190, 'resolution': 20}
+        }
     }
 
     # Sandy Bear Dunes domain
@@ -39,28 +53,12 @@ class Data:
     sbd_dom = Domain('+proj=latlong +datum=WGS84 +ellps=WGS84 +no_defs', '-lle -86.3 44.6 -85.2 45.3 -ts %s %s'
                     % (x_resolution, y_resolution))
 
-    # BANDS = {
-    #     '01': {'wavelength': 443, 'resolution': 60},
-    #     '02': {'wavelength': 490, 'resolution': 10},
-    #     '03': {'wavelength': 560, 'resolution': 10},
-    #     '04': {'wavelength': 665, 'resolution': 10},
-    #     '05': {'wavelength': 705, 'resolution': 20},
-    #     '06': {'wavelength': 740, 'resolution': 20},
-    #     '07': {'wavelength': 783, 'resolution': 20},
-    #     '08': {'wavelength': 842, 'resolution': 10},
-    #     #    '8A':{ 'wavelength': 865, 'resolution': 20 },
-    #     '09': {'wavelength': 945, 'resolution': 60},
-    #     '10': {'wavelength': 1375, 'resolution': 60},
-    #     '11': {'wavelength': 1610, 'resolution': 20},
-    #     '12': {'wavelength': 2190, 'resolution': 20}
-    # }
-
     # <granules> is list of granules which covers Sandy Bear Dunes region.
     # To get more information about granules see:
     # https://sentinels.copernicus.eu/web/sentinel/user-guides/sentinel-2-msi/product-types
     granules = ['16TER', '16TFR', '16TEQ', '16TFQ']
 
-    def __init__(self, m_file=None, s_file=None, domain=None):
+    def __init__(self, ifile, domain=None):
         """
         :param ifile: str, file path  
         :param domain: <nansat.domain.Domain> object
@@ -71,24 +69,20 @@ class Data:
         if domain is not None:
             self.domain = domain
 
-        self.m_file = m_file
-        self.s_file = s_file
+        self.ifile = ifile
 
-        if not self.m_file and not self.s_file:
-            raise ImportError
-
-    def modis_geo_location(self, wavelengths, save_path='./', gcp_count=70):
+    def modis_geo_location(self, wavelengths_set='1x1km_bands', save_path='./', gcp_count=40):
         """
         :param wavelengths: list, list of wavelengths 
         :param save_path: str
         :param gcp_count: str
         :return: <nansat.nansat.Nansat> object, an object with a new geo location 
         """
-        if self.m_file is None:
+        if re.match(r'A', os.path.split(self.ifile)[-1]) is None:
             raise IOError
 
-        print self.m_file
-        n = Nansat(self.m_file, GCP_COUNT=gcp_count)
+        print self.ifile
+        n = Nansat(self.ifile, GCP_COUNT=gcp_count)
         # Remove geo location
         n.vrt.remove_geolocationArray()
         n.vrt.tps = True
@@ -100,7 +94,7 @@ class Data:
         n.add_band(index, parameters={'name': 'index'})
         n.reproject(self.domain, addmask=False)
 
-        bands = ['Rrs_%s' % band for band in wavelengths]
+        bands = ['Rrs_%s' % band for band in self.wavelengths['modis'][wavelengths_set]]
         bands.insert(0, 'index')
 
         n_export = Nansat(domain=self.domain)
@@ -108,7 +102,7 @@ class Data:
             print band
             band_arr = n[band]
             n_export.add_band(band_arr, parameters={'name': band})
-            n_export.export(os.path.join(save_path, os.path.split(self.m_file)[1] + '_reprojected.nc'))
+            n_export.export(os.path.join(save_path, os.path.split(self.ifile)[1] + '_reprojected.nc'))
 
         return n_export
 
@@ -122,7 +116,7 @@ class Data:
         # Create base nansat object which domain covers all four <granules>
         n_obj = Nansat(domain=domain)
         for band in bands:
-            print('Band:', band)
+            print('Band:', band, self.wavelengths['sentinel2'][band]['wavelength'])
             # Generate 2d array which will have shape like <d> and filled by nan
             band_arr = np.zeros(domain.shape()) + np.nan
             for gdir in gdirs:
@@ -134,18 +128,18 @@ class Data:
                 bdata = n[1]
                 band_arr[bdata > 0] = bdata[bdata > 0]
 
-            n_obj.add_band(band_arr, parameters={'name': 'Rrs_%s' % band})
+            n_obj.add_band(band_arr, parameters={'name': 'Rrs_%s' % self.wavelengths['sentinel2'][band]['wavelength']})
 
         return n_obj
 
     def s2_downscale(self, save_path='./'):
 
-        if re.match(r'S2A', self.s_file):
+        if re.match(r'S2A', os.path.split(self.ifile)[-1]) is None:
             raise IOError
 
         gdirs = []
         for granule in self.granules:
-            gdirs += sorted(glob.glob(os.path.join(self.s_file, 'GRANULE', '*_T%s_*' % granule)))
+            gdirs += sorted(glob.glob(os.path.join(self.ifile, 'GRANULE', '*_T%s_*' % granule)))
 
         # get lon/lat limits
         # Lists for accumulation of lon/lat values from each granule
@@ -168,21 +162,21 @@ class Data:
             min(lons), min(lats), max(lons), max(lats)))
         print('Domain created')
 
-        n_obj = self.stich(d, self.wavelengths['sentinel2'], gdirs)
+        n_obj = self.stich(d, sorted(self.wavelengths['sentinel2'].keys()), gdirs)
         n_obj.reproject(self.domain)
-        export_name = os.path.split(self.s_file)[1] + '_reprojected.nc'
+        export_name = os.path.split(self.ifile)[1] + '_reprojected.nc'
         n_obj.export(os.path.join(save_path, export_name))
 
     def s2_make_granules(self, save_path='./'):
 
-        if re.match(r'S2A', self.s_file):
+        if re.match(r'S2A', os.path.split(self.ifile)[-1]) is None:
             raise IOError
 
         # Get list of granules
         # What is granules: https://sentinels.copernicus.eu/web/sentinel/user-guides/sentinel-2-msi/product-types
         # Add path to sentinel image <ifile>
 
-        gdirs = sorted(glob.glob(os.path.join(self.s_file, 'GRANULE', '*')))
+        gdirs = sorted(glob.glob(os.path.join(self.ifile, 'GRANULE', '*')))
 
         lons = []  # List of longitudes for each granule
         lonVec = []  # ???
@@ -218,7 +212,7 @@ class Data:
         ## print(d)
 
         # Create name for export of img which all granules
-        mapfile = os.path.split(self.s_file)[1] + '_map.png'
+        mapfile = os.path.split(self.ifile)[1] + '_map.png'
         ## print(mapfile)
         d.write_map(mapfile, resolution='h',
                     lonVec=lonVec, latVec=latVec,
@@ -249,6 +243,6 @@ class Data:
         s2array[wm == 2] = 0
 
         # Create name of file
-        qlfile = os.path.split(self.s_file)[1] + '_ql.png'
+        qlfile = os.path.split(self.ifile)[1] + '_ql.png'
         # Save on disk full generated image: #s2array
         plt.imsave(os.path.join(save_path, qlfile), s2array, vmin=1050, vmax=1400)
