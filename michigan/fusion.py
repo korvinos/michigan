@@ -2,7 +2,7 @@ from nansat import Nansat
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 
-# from ovl_plugins.fusion.fusion import fuse
+from ovl_plugins.fusion.fusion import fuse
 from dataprep import Data
 
 
@@ -16,8 +16,8 @@ class Fusion(Data):
 
     cutsize = 2000
 
-    def __init__(self, m_file, s_file, smooth=False, skip=True, log=False, mask=True, cut=True, negative_px=True,
-                 prepare_m=False, prepare_s=False):
+    def __init__(self, m_file, s_file, domain=None, smooth=False, skip=True, log=False, mask=True, cut=True,
+                 negative_px=True, prepare_m=False, prepare_s=False):
         """
         :param s_file: str, path to Sentinel-2 file of <hiresfile>
         :param m_file: str, path to MODISa file or <loresfile>
@@ -27,6 +27,9 @@ class Fusion(Data):
         :param mask: bool
         :param cut: bool
         """
+
+        if not domain:
+            self.domain = self.sbd_dom
 
         self.m_file = m_file
 
@@ -57,7 +60,8 @@ class Fusion(Data):
         hiresfile.reproject(self.domain)
 
         # Get numbers of of each band
-        band_rrs_numbers = [hiresfile._get_band_number('Rrs_%s' % wavelength) for wavelength in self.wavelengths['sentinel2']]
+        band_rrs_numbers = [hiresfile._get_band_number('Rrs_%s' % wavelength)
+                            for wavelength in sorted(self.wavelengths['sentinel2'].values())]
         # Create array form
         hires_np_array = np.array([hiresfile[i] for i in band_rrs_numbers])
         # remove out-of-swath
@@ -104,22 +108,22 @@ class Fusion(Data):
         index = self.index[:self.cutsize, :self.cutsize]
         return hires_arr, negpix, index
 
-    # def fusion(self, m_wavelengths='full'):
-    #     bands = ['Rrs_%s' % wavelength for wavelength in self.wavelengths['modis'][m_wavelengths]]
-    #     n_hires = Nansat(domain=self.domain)
-    #     n_lores = Nansat(domain=self.domain)
-    #
-    #     for band in bands:
-    #         lores = self.loresfile[band]
-    #         if self.cut:
-    #             lores = lores[:self.cutsize, :self.cutsize]
-    #
-    #         lores[self.negpix] = np.nan
-    #         n_lores.add_band(lores, parameters={'name': band})
-    #         # hires_fused = fuse(hires, lores, network_name=rgb_band,
-    #         # iterations=100, threads=7, nn_structure=[5, 10, 7, 3])
-    #         # TODO: We should use less number of iterations: 15 - 16
-    #         hires_fused = fuse(self.hires, lores, network_name=band, iterations=20, threads=7, index=self.index)
-    #         n_hires.add_band(hires_fused, parameters={'name': band})
-    #
-    #     return n_lores, n_hires
+    def fusion(self, m_wavelengths='full'):
+        bands = ['Rrs_%s' % wavelength for wavelength in self.wavelengths['modis'][m_wavelengths]]
+        n_hires = Nansat(domain=self.domain)
+        n_lores = Nansat(domain=self.domain)
+
+        for band in bands:
+            lores = self.loresfile[band]
+            if self.cut:
+                lores = lores[:self.cutsize, :self.cutsize]
+
+            lores[self.negpix] = np.nan
+            n_lores.add_band(lores, parameters={'name': band})
+            # hires_fused = fuse(hires, lores, network_name=rgb_band,
+            # iterations=100, threads=7, nn_structure=[5, 10, 7, 3])
+            # TODO: We should use less number of iterations: 15 - 16
+            hires_fused = fuse(self.hires, lores, network_name=band, iterations=20, threads=7, index=self.index)
+            n_hires.add_band(hires_fused, parameters={'name': band})
+
+        return n_lores, n_hires

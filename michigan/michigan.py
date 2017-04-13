@@ -43,12 +43,17 @@ class MichiganProcessing(Fusion):
         h = bathymetry[1]
         # all points there h >= 0 will marked as np.nan
         h = np.where(h >= 0, np.nan, np.float32(h) * -1)
-        # the mask of land
-        h_mask = np.where(np.isfinite(h), np.nan, np.array(1))
 
         # the mask which shows 10 meters depth zone
         h_10m = np.where(h <= 10, np.array(1), np.nan)
         return h
+
+    def get_land_mask(self, bathymetry_path=BATHYMETRY_PATH):
+        h = self.get_bottom(bathymetry_path=bathymetry_path)
+        # the mask of land
+        h_mask = np.where(np.isfinite(h), np.nan, np.array(1))
+
+        return h_mask
 
     def boreali_processing(self, wavelengths_set='1x1km_bands', bottom_type=0, osw_mod='on', bathymetry_path=BATHYMETRY_PATH,
                            hydro_optic='michigan'):
@@ -179,10 +184,15 @@ class MichiganProcessing(Fusion):
             return c_osw, c_deep, depth
 
     def bottom_classification(self, clusters, wavelengths_set='1x1km_bands'):
+        # We have to add one more class in classification for a land
 
         k_train_arr = []
+
         for band in self.wavelengths['modis'][wavelengths_set]:
-            k_train_arr.append(self.ifile['Rrs_%s' % (band)].flatten())
+            arr = self.ifile['Rrs_%s' % (band)]
+            # all 999 pixels will combined in one class
+            arr[np.isnan(arr) is True] = 999
+            k_train_arr.append(arr.ravel())
 
         k_train_arr = np.array(k_train_arr).T
 

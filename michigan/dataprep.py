@@ -20,22 +20,35 @@ class Data:
         },
 
         'sentinel2': {
-            '01': {'wavelength': 443, 'resolution': 60},
-            '02': {'wavelength': 490, 'resolution': 10},
-            '03': {'wavelength': 560, 'resolution': 10},
-            '04': {'wavelength': 665, 'resolution': 10},
-            '05': {'wavelength': 705, 'resolution': 20},
-            '06': {'wavelength': 740, 'resolution': 20},
-            '07': {'wavelength': 783, 'resolution': 20},
-            '08': {'wavelength': 842, 'resolution': 10},
-    #        '8A':{ 'wavelength': 865, 'resolution': 20},
-            '09': {'wavelength': 945, 'resolution': 60},
-            '10': {'wavelength': 1375, 'resolution': 60},
-            '11': {'wavelength': 1610, 'resolution': 20},
-            '12': {'wavelength': 2190, 'resolution': 20}
+            '01': 443,
+            '02': 490,
+            '03': 560,
+            '04': 665,
+            '05': 705,
+            '06': 740,
+            '07': 783,
+            '08': 842,
+            #   '8A':{ 'wavelength': 865, 'resolution': 20},
+            '09': 945,
+            '10': 1375,
+            '11': 1610,
+            #   '12': 2190
         }
     }
 
+    #         '01': {'wavelength': 443, 'resolution': 60},
+    #         '02': {'wavelength': 490, 'resolution': 10},
+    #         '03': {'wavelength': 560, 'resolution': 10},
+    #         '04': {'wavelength': 665, 'resolution': 10},
+    #         '05': {'wavelength': 705, 'resolution': 20},
+    #         '06': {'wavelength': 740, 'resolution': 20},
+    #         '07': {'wavelength': 783, 'resolution': 20},
+    #         '08': {'wavelength': 842, 'resolution': 10},
+    # #        '8A':{ 'wavelength': 865, 'resolution': 20},
+    #         '09': {'wavelength': 945, 'resolution': 60},
+    #         '10': {'wavelength': 1375, 'resolution': 60},
+    #         '11': {'wavelength': 1610, 'resolution': 20},
+    #         '12': {'wavelength': 2190, 'resolution': 20}
     # Sandy Bear Dunes domain
     # <pixel_size> spatial resolution of each pixel in meters.
     # Based on characteristics of sentinel2a. Min: 10 m; Mean: 20 m; Max: 60 m;
