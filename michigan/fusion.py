@@ -7,6 +7,8 @@ from dataprep import Data
 
 
 class Fusion(Data):
+    BATHYMETRY_PATH = './requirements/michigan_lld.grd'
+
     # Constants for Sentinel-2 image correction
     bMax = 2300  # OK
     # bMax = 200 # MAYBE A BIT TOO LOW
@@ -17,7 +19,7 @@ class Fusion(Data):
     cutsize = 2000
 
     def __init__(self, m_file, s_file, domain=None, smooth=False, skip=True, log=False, mask=True, cut=True,
-                 negative_px=True, prepare_m=False, prepare_s=False):
+                 negative_px=True, h_mask=9999, prepare_m=False, prepare_s=False):
         """
         :param s_file: str, path to Sentinel-2 file of <hiresfile>
         :param m_file: str, path to MODISa file or <loresfile>
@@ -70,7 +72,7 @@ class Fusion(Data):
         self.cut = cut
 
         if mask:
-            hires_np_array = self.mask(hires_np_array)
+            hires_np_array = self.mask(hires_np_array, h_mask)
 
         if smooth and negative_px:
             hires_np_array = self.smooth(hires_np_array)
@@ -87,16 +89,45 @@ class Fusion(Data):
 
         self.hires = hires_np_array
 
+    def get_bottom(self, bathymetry_path=BATHYMETRY_PATH):
+        bathymetry = Nansat(bathymetry_path)
+        bathymetry.reproject(self.domain)
+        # preparing of bottom field
+        h = bathymetry[1]
+        # all points there h >= 0 will marked as np.nan
+        h = np.where(h >= 0, np.nan, np.float32(h) * -1)
+        return h
+
+    def get_land_mask(self, bathymetry_path=BATHYMETRY_PATH):
+        h = self.get_bottom(bathymetry_path=bathymetry_path)
+        # the mask of land
+        land_mask = np.where(np.isfinite(h), np.nan, np.array(1))
+        return land_mask
+
+    def get_h_mask(self, h_max, h_min=None, bathymetry_path=BATHYMETRY_PATH, mask_val=np.nan):
+        h_mask = self.get_bottom(bathymetry_path=bathymetry_path)
+        h_mask[h_mask > h_max] = mask_val
+
+        if h_min is not None:
+            h_mask[h_mask < h_min] = mask_val
+
+        return h_mask
+
     def smooth(self, hires_arr):
         ws = 1
         hires_arr[:, self.negpix] = np.nan
         hires_arr = gaussian_filter(hires_arr, (0, ws, ws))
         return hires_arr
 
-    def mask(self, hires_arr):
+    def mask(self, hires_arr, h_mask):
         watter_mask = self.loresfile.watermask()[1]
         watter_mask_filtered = gaussian_filter(watter_mask.astype(np.float32), 1)
         hires_arr[:, watter_mask_filtered > 1] = np.nan
+        if h_mask is not 9999:
+            hm = self.get_h_mask(h_mask)
+            # return hm
+            hires_arr[:, np.isnan(hm) == True] = np.nan
+
         # mask clouds
         hires_arr[:, hires_arr[7] > self.bMax] = np.nan
         hires_arr[:, hires_arr[0] < self.bMin] = np.nan
@@ -115,10 +146,12 @@ class Fusion(Data):
 
         for band in bands:
             lores = self.loresfile[band]
+
             if self.cut:
                 lores = lores[:self.cutsize, :self.cutsize]
 
             lores[self.negpix] = np.nan
+
             n_lores.add_band(lores, parameters={'name': band})
             # hires_fused = fuse(hires, lores, network_name=rgb_band,
             # iterations=100, threads=7, nn_structure=[5, 10, 7, 3])

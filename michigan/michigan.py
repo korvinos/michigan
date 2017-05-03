@@ -7,15 +7,14 @@ from sklearn.cluster import KMeans
 
 class MichiganProcessing(Fusion):
 
-    BATHYMETRY_PATH = './requirements/michigan_lld.grd'
-
-    def __init__(self, m_file, s_file=None, fuse=False, domain=False, reproject=False):
+    def __init__(self, m_file, s_file=None, fuse=False, domain=False, reproject=False, h_mask=30):
         """
         :param m_file: 
         :param s_file: 
-        :param fusion: 
-        :param wavelengths: 
-        :param domain: 
+        :param fuse: 
+        :param domain:
+        :param reproject:
+        :param h_mask: int, max depth border 
         """
         # TODO: Check out info about inheritance of <__init__> method
 
@@ -26,8 +25,9 @@ class MichiganProcessing(Fusion):
 
         if fuse:
             try:
-                Fusion.__init__(self, m_file, s_file)
-                self.ifile = self.fusion()
+                if h_mask:
+                    Fusion.__init__(self, m_file, s_file)
+                    self.ifile = self.fusion()
             except TypeError:
                 print 'Requested Sentinel-2 file was not found'
 
@@ -36,30 +36,11 @@ class MichiganProcessing(Fusion):
             if reproject:
                 self.ifile.reproject(self.domain)
 
-    def get_bottom(self, bathymetry_path=BATHYMETRY_PATH):
-        bathymetry = Nansat(bathymetry_path)
-        bathymetry.reproject(self.domain)
-        # preparing of bottom field
-        h = bathymetry[1]
-        # all points there h >= 0 will marked as np.nan
-        h = np.where(h >= 0, np.nan, np.float32(h) * -1)
-
-        # the mask which shows 10 meters depth zone
-        h_10m = np.where(h <= 10, np.array(1), np.nan)
-        return h
-
-    def get_land_mask(self, bathymetry_path=BATHYMETRY_PATH):
-        h = self.get_bottom(bathymetry_path=bathymetry_path)
-        # the mask of land
-        h_mask = np.where(np.isfinite(h), np.nan, np.array(1))
-
-        return h_mask
-
-    def boreali_processing(self, wavelengths_set='1x1km_bands', bottom_type=0, osw_mod='on', bathymetry_path=BATHYMETRY_PATH,
+    def boreali_processing(self, wavelengths_set='1x1km_bands', bottom_type=0, osw_mod='on',
                            hydro_optic='michigan'):
 
         wavelengths = self.wavelengths['modis'][wavelengths_set]
-
+        bathymetry_path = self.BATHYMETRY_PATH
         cpa_limits = [0.01, 3,
                       0.01, 1,
                       0.01, 1, 10]
@@ -183,15 +164,19 @@ class MichiganProcessing(Fusion):
         else:
             return c_osw, c_deep, depth
 
-    def bottom_classification(self, clusters, wavelengths_set='1x1km_bands'):
+    def bottom_classification(self, clusters, wavelengths_set='1x1km_bands', h_max=30, h_min=None):
         # We have to add one more class in classification for a land
-
+        # TODO: Add capability to get data set by bottom depth
         k_train_arr = []
+        # all pixels shallower then <h_mask> value should be masked
+        mask = self.get_h_mask(h_max=h_max, h_min=h_min)
 
         for band in self.wavelengths['modis'][wavelengths_set]:
-            arr = self.ifile['Rrs_%s' % (band)]
+            print 'Rrs_%s' % band
+            arr = self.ifile['Rrs_%s' % band]
             # all 999 pixels will combined in one class
-            arr[np.isnan(arr) is True] = 999
+            arr[np.isnan(arr) == True] = 999
+            arr[np.isnan(mask) == True] = 999
             k_train_arr.append(arr.ravel())
 
         k_train_arr = np.array(k_train_arr).T
