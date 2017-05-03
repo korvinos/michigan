@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def show_it(obj, name, color='jet', limits=None, z10='off', size=(9, 6), coord_grid='off', land_mask=None):
+def show_it(obj, name='no name', color='jet', limits=None, z10='off', size=(9, 6), coord_grid='off', land_mask=None):
 
     plt.figure(figsize=size)
     plt.imshow(obj, clim=limits, cmap=color)

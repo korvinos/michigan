@@ -28,11 +28,11 @@ class Data:
             '06': 740,
             '07': 783,
             '08': 842,
-            #   '8A':{ 'wavelength': 865, 'resolution': 20},
+            '8A': 865,
             '09': 945,
             '10': 1375,
             '11': 1610,
-            #   '12': 2190
+            '12': 2190
         }
     }
 
@@ -91,10 +91,12 @@ class Data:
         :param gcp_count: str
         :return: <nansat.nansat.Nansat> object, an object with a new geo location 
         """
-        if re.match(r'A', os.path.split(self.ifile)[-1]) is None:
+        file_name = os.path.split(self.ifile)[-1]
+        print file_name
+
+        if re.match(r'A', file_name) is None:
             raise IOError
 
-        print self.ifile
         n = Nansat(self.ifile, GCP_COUNT=gcp_count)
         # Remove geo location
         n.vrt.remove_geolocationArray()
@@ -119,39 +121,52 @@ class Data:
 
         return n_export
 
-    def stich(self, domain, bands, gdirs):
+    def stich(self, domain, bands, gdirs, s2_user=False):
         """
         :param domain: 
         :param bands: list
-        :param gdirs: list, list of directories paths  
+        :param gdirs: list, list of directories paths 
+        :param s2_user: bool, is it corrected file
         :return: 
         """
         # Create base nansat object which domain covers all four <granules>
         n_obj = Nansat(domain=domain)
         for band in bands:
-            print('Band:', band, self.wavelengths['sentinel2'][band]['wavelength'])
+            print('Band:', band, self.wavelengths['sentinel2'][band])
             # Generate 2d array which will have shape like <d> and filled by nan
             band_arr = np.zeros(domain.shape()) + np.nan
             for gdir in gdirs:
-                bfile = glob.glob(os.path.join(gdir, 'IMG_DATA', '*_B%s.jp2' % band))[0]
-                n = Nansat(bfile)
-                # Reprojection of data according to domain; eResampleAlg 1 is Bilinear
-                n.reproject(domain, eResampleAlg=1, addmask=False)
-                # Get data array from nansat object
-                bdata = n[1]
-                band_arr[bdata > 0] = bdata[bdata > 0]
+                data_path = os.path.join(gdir, 'IMG_DATA', '*_B%s.jp2' % band)
 
-            n_obj.add_band(band_arr, parameters={'name': 'Rrs_%s' % self.wavelengths['sentinel2'][band]['wavelength']})
+                if s2_user:
+                    data_path = os.path.join(gdir, 'IMG_DATA', 'R60m', '*_B%s_60m.jp2' % band)
+                try:
+                    bfile = glob.glob(data_path)[0]
+                    n = Nansat(bfile)
+                    # Reprojection of data according to domain; eResampleAlg 1 is Bilinear
+                    n.reproject(domain, eResampleAlg=1, addmask=False)
+                    # Get data array from nansat object
+                    bdata = n[1]
+                    band_arr[bdata > 0] = bdata[bdata > 0]
+                except IndexError:
+                    print "Data path <%s> doesn't exist" % data_path
+                    pass
+
+            n_obj.add_band(band_arr, parameters={'name': 'Rrs_%s' % self.wavelengths['sentinel2'][band]})
 
         return n_obj
 
     def s2_downscale(self, save_path='./'):
+        file_name = os.path.split(self.ifile)[-1]
+        print file_name
+        s2_user = False
 
-        if re.match(r'S2A', os.path.split(self.ifile)[-1]) is None:
+        if re.match(r'S2A', file_name) is None:
             raise IOError
 
         gdirs = []
         for granule in self.granules:
+
             gdirs += sorted(glob.glob(os.path.join(self.ifile, 'GRANULE', '*_T%s_*' % granule)))
 
         # get lon/lat limits
@@ -160,22 +175,27 @@ class Data:
         lats = []
 
         for gdir in gdirs:
+            data_path = os.path.join(gdir, 'IMG_DATA', '*_B01.jp2')
+
+            # We need other path pattern for corrected S2 data
+            if re.match(r'S2A_USER', file_name) is not None:
+                data_path = os.path.join(gdir, 'IMG_DATA', 'R60m', '*_B01_60m.jp2')
+                s2_user = True
+
             # Find absolute path to relevant granule
-            b0file = glob.glob(os.path.join(gdir, 'IMG_DATA', '*_B01.jp2'))[0]
+            b0file = glob.glob(data_path)[0]
             # Get granule by nansat
             n = Nansat(b0file)
             lon, lat = n.get_corners()
-
             # Add min/max values of long and lat to list
             lons += list(lon)
             lats += list(lat)
 
         # Create domain according to max and min values of lon and lat
-        d = Domain(n.vrt.get_projection(), '-lle %f %f %f %f -tr 60 60' % (
-            min(lons), min(lats), max(lons), max(lats)))
+        d = Domain(n.vrt.get_projection(), '-lle %f %f %f %f -tr 60 60' % (min(lons), min(lats), max(lons), max(lats)))
         print('Domain created')
 
-        n_obj = self.stich(d, sorted(self.wavelengths['sentinel2'].keys()), gdirs)
+        n_obj = self.stich(d, sorted(self.wavelengths['sentinel2'].keys()), gdirs, s2_user=s2_user)
         n_obj.reproject(self.domain)
         export_name = os.path.split(self.ifile)[1] + '_reprojected.nc'
         n_obj.export(os.path.join(save_path, export_name))

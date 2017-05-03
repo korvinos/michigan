@@ -5,3 +5,4 @@
 *.pyc
 /*.nc
 /data/S2A_*
+NN*/
