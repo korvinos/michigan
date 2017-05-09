@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import os
 import re
 import glob
+import gdal
+from nansat.nsr import NSR
 
 
 class Data:
@@ -16,8 +18,11 @@ class Data:
             'red_off': [412, 443, 469, 488, 531, 547, 555, 645, 667],  # Without 678 nm
             'blue_and_red_off': [443, 469, 488, 531, 547, 555, 645, 667],  # Without 412 nm and 678 nm
             'red_off_full': [412, 443, 469, 488, 531, 547, 555],
-            '1x1km_bands_2': [443, 488, 531, 645, 678]  # Only 1x1 km spatial resolution bands
+            '1x1km_bands_412off': [443, 488, 531, 645, 678],  # Only 1x1 km spatial resolution bands without of 412 nm
+            '1x1km_bands_678off': [412, 443, 488, 531, 645]  # Only 1x1 km spatial resolution bands without of 678 nm
+
         },
+
 
         'sentinel2': {
             '01': 443,
@@ -86,7 +91,7 @@ class Data:
 
     def modis_geo_location(self, wavelengths_set='1x1km_bands', save_path='./', gcp_count=40):
         """
-        :param wavelengths: list, list of wavelengths 
+        :param wavelengths_set: list, list of wavelengths 
         :param save_path: str
         :param gcp_count: str
         :return: <nansat.nansat.Nansat> object, an object with a new geo location 
@@ -118,6 +123,69 @@ class Data:
             band_arr = n[band]
             n_export.add_band(band_arr, parameters={'name': band})
             n_export.export(os.path.join(save_path, os.path.split(self.ifile)[1] + '_reprojected.nc'))
+
+        return n_export
+
+    def modis_geo_location_beta(self, wavelengths_set='1x1km_bands', save_path='./', gcp_count=40):
+        m_file = Nansat(self.ifile)
+        latitude = m_file['lat']
+        longitude = m_file['lon']
+        title = 'test'
+        GCP_COUNT = gcp_count
+        step0 = max(1, int(float(latitude.shape[0]) / GCP_COUNT))
+        step1 = max(1, int(float(latitude.shape[1]) / GCP_COUNT))
+        m_file.logger.debug('gcpCount: >%s<, %d %d %f %d %d',
+                            title, latitude.shape[0], latitude.shape[1], GCP_COUNT, step0, step1)
+        pixelStep = 1
+        lineStep = 1
+        dx = .5
+        dy = .5
+        gcps = []
+        k = 0
+        center_lon = 0
+        center_lat = 0
+        for i0 in range(0, latitude.shape[0], step0):
+            for i1 in range(0, latitude.shape[1], step1):
+                # create GCP with X,Y,pixel,line from lat/lon matrices
+                lon = float(longitude[i0, i1])
+                lat = float(latitude[i0, i1])
+                if (lon >= -180 and lon <= 180 and lat >= -90 and lat <= 90):
+                    gcp = gdal.GCP(lon, lat, 0, i1 * pixelStep + dx,
+                                   i0 * lineStep + dy)
+                    m_file.logger.debug('%d %d %d %f %f', k, gcp.GCPPixel, gcp.GCPLine, gcp.GCPX, gcp.GCPY)
+                    gcps.append(gcp)
+                    center_lon += gcp.GCPX
+                    center_lat += gcp.GCPY
+                    k += 1
+
+        # append GCPs and lat/lon projection to the vsiDataset
+        m_file.vrt.dataset.SetGCPs(gcps, NSR().wkt)
+        m_file.vrt.remove_geolocationArray()
+
+        # reproject GCPs
+        center_lon /= k
+        center_lat /= k
+        srs = '+proj=stere +datum=WGS84 +ellps=WGS84 +lon_0=%f +lat_0=%f +no_defs' % (center_lon, center_lat)
+        m_file.reproject_GCPs(srs)
+
+        # use TPS for reprojection
+        m_file.vrt.tps = True
+        print m_file.time_coverage_start
+
+        # add index of pixels
+        index = np.arange(0, m_file.shape()[0] * m_file.shape()[1]).reshape(m_file.shape()).astype('int32')
+        m_file.add_band(index, parameters={'name': 'index'})
+        m_file.reproject(Data.sbd_dom, addmask=False)
+
+        bands = ['Rrs_%s' % band for band in self.wavelengths['modis'][wavelengths_set]]
+        bands.insert(0, 'index')
+
+        n_export = Nansat(domain=Data.sbd_dom)
+        for band in bands:
+            print band
+            band_arr = m_file[band]
+            n_export.add_band(band_arr, parameters={'name': band})
+            n_export.export(os.path.join(save_path, os.path.split(self.ifile)[-1] + '_mumm_reprojected.nc'))
 
         return n_export
 
