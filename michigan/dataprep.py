@@ -277,7 +277,9 @@ class Data:
         # What is granules: https://sentinels.copernicus.eu/web/sentinel/user-guides/sentinel-2-msi/product-types
         # Add path to sentinel image <ifile>
 
-        gdirs = sorted(glob.glob(os.path.join(self.ifile, 'GRANULE', '*')))
+        gdirs = []
+        for granule in self.granules:
+            gdirs += sorted(glob.glob(os.path.join(self.ifile, 'GRANULE', '*_T%s_*' % granule)))
 
         lons = []  # List of longitudes for each granule
         lonVec = []  # ???
